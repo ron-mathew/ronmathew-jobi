@@ -1,0 +1,25 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Restriction: NEVER commit raw dataset or data-pack files
+dataset/
+data/
+gps/
+*.nmea
+S0*.csv
+stations.csv
+maintenance_log.md

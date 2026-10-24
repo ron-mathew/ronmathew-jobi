@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ridgeline Schools Weather Network – Health Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt;
+           color: #1a1a1a; background: #fff; padding: 20mm 18mm; }
+    h1 { font-size: 14pt; color: #003366; border-bottom: 2px solid #003366;
+          padding-bottom: 4px; margin-bottom: 8px; }
+    h2 { font-size: 11pt; color: #003366; margin-top: 14px; margin-bottom: 4px; }
+    p { margin-bottom: 6px; line-height: 1.45; }
+    .meta { font-size: 9pt; color: #555; margin-bottom: 10px; }
+    .highlight { background: #fff3cd; border-left: 4px solid #e67e00;
+                  padding: 6px 10px; margin: 8px 0; border-radius: 2px; }
+    .good { background: #d4edda; border-left: 4px solid #28a745;
+             padding: 6px 10px; margin: 8px 0; border-radius: 2px; }
+    .warn { background: #f8d7da; border-left: 4px solid #c0392b;
+             padding: 6px 10px; margin: 8px 0; border-radius: 2px; }
+    table.data-table { border-collapse: collapse; width: 100%; font-size: 9pt;
+                        margin-bottom: 8px; }
+    table.data-table th { background: #003366; color: #fff; padding: 4px 6px;
+                           text-align: left; font-weight: normal; }
+    table.data-table td { border: 1px solid #ccc; padding: 3px 6px;
+                           vertical-align: top; }
+    table.data-table tr:nth-child(even) td { background: #f5f8fc; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+                margin-bottom: 8px; }
+    .box { background: #f0f4f8; border: 1px solid #ccd; border-radius: 4px;
+            padding: 8px; }
+    .box h3 { font-size: 9.5pt; color: #003366; margin-bottom: 4px; }
+    @media print { body { padding: 10mm; } }
+  </style>
+</head>
+<body>
+
+<h1>Ridgeline Schools Weather Network — Data Quality Report</h1>
+<p class="meta">
+  Generated: 2026-10-24 18:11 UTC &nbsp;|&nbsp;
+  Data window: 2025-03-01 to 2025-04-11 &nbsp;|&nbsp;
+  Network: 8 stations &nbsp;|&nbsp;
+  Total flags: 22
+</p>
+
+<h2>Overall Assessment</h2>
+<p>
+  The network collected approximately six weeks of data from 8 stations.
+  <strong>7 of 8 stations</strong> have at least one
+  data-quality flag. 17 individual observations (or intervals) are
+  recommended for exclusion. The majority of channels across most stations are usable
+  for the spring climate summary, but several specific issues require attention before
+  analysis.
+</p>
+
+<h2>Channel Trust Summary</h2>
+<table class="data-table"><thead><tr>
+<th>Channel</th>
+<th>Status</th>
+</tr></thead><tbody>
+<tr>
+<td>temp_c</td>
+<td>Conditional / some periods excluded</td>
+</tr>
+<tr>
+<td>rh_pct</td>
+<td>Conditional / some periods excluded</td>
+</tr>
+<tr>
+<td>pressure_hpa</td>
+<td>Trustworthy (with caveats)</td>
+</tr>
+<tr>
+<td>wind_kmh</td>
+<td>Trustworthy (with caveats)</td>
+</tr>
+<tr>
+<td>wind_dir_deg</td>
+<td>Trustworthy</td>
+</tr>
+<tr>
+<td>rain_mm</td>
+<td>Conditional / some periods excluded</td>
+</tr>
+<tr>
+<td>ghi_wm2</td>
+<td>Trustworthy</td>
+</tr>
+</tbody></table>
+
+<h2>Station-by-Station Summary</h2>
+<table class="data-table"><thead><tr>
+<th>Station</th>
+<th>Flags</th>
+<th>Exclude</th>
+<th>Keep*</th>
+<th>Correct</th>
+<th>Top issue</th>
+</tr></thead><tbody>
+<tr>
+<td>S01 – Saddle Ridge Hut</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>none</td>
+</tr>
+<tr>
+<td>S02 – North Mesa School</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>abrupt level shift</td>
+</tr>
+<tr>
+<td>S03 – Valley Library</td>
+<td>5</td>
+<td>5</td>
+<td>0</td>
+<td>0</td>
+<td>isolated spike</td>
+</tr>
+<tr>
+<td>S04 – Foothills Community Garden</td>
+<td>3</td>
+<td>3</td>
+<td>0</td>
+<td>0</td>
+<td>isolated spike</td>
+</tr>
+<tr>
+<td>S05 – Eastside Rec Centre</td>
+<td>7</td>
+<td>6</td>
+<td>1</td>
+<td>0</td>
+<td>physical range violation</td>
+</tr>
+<tr>
+<td>S06 – South Hills Fire Station</td>
+<td>3</td>
+<td>1</td>
+<td>2</td>
+<td>0</td>
+<td>duplicate timestamp</td>
+</tr>
+<tr>
+<td>S07 – Riverbend Farm</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>post maintenance change</td>
+</tr>
+<tr>
+<td>S08 – Plains Grange Hall</td>
+<td>2</td>
+<td>2</td>
+<td>0</td>
+<td>0</td>
+<td>missing interval</td>
+</tr>
+</tbody></table>
+<p style="font-size:8.5pt;color:#555;">* "Keep" flags are retained with a caveat (e.g., genuine extreme, uncertain diagnosis).</p>
+
+<h2>Material Issues (Exclude / Correct)</h2>
+<table class="data-table"><thead><tr>
+<th>Station</th>
+<th>Channel</th>
+<th>Start</th>
+<th>End</th>
+<th>Issue</th>
+<th>Action</th>
+</tr></thead><tbody>
+<tr>
+<td>S02</td>
+<td>pressure_hpa</td>
+<td>21 Mar 2025 00:00</td>
+<td>11 Apr 2025 23:50</td>
+<td>abrupt level shift</td>
+<td>correct</td>
+</tr>
+<tr>
+<td>S03</td>
+<td>temp_c</td>
+<td>05 Mar 2025 14:20</td>
+<td>05 Mar 2025 14:20</td>
+<td>isolated spike</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S03</td>
+<td>temp_c</td>
+<td>12 Mar 2025 03:40</td>
+<td>12 Mar 2025 03:40</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S03</td>
+<td>temp_c</td>
+<td>18 Mar 2025 06:00</td>
+<td>21 Mar 2025 14:00</td>
+<td>stuck sensor</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S03</td>
+<td>temp_c</td>
+<td>02 Apr 2025 22:10</td>
+<td>02 Apr 2025 22:10</td>
+<td>isolated spike</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S03</td>
+<td>temp_c</td>
+<td>08 Apr 2025 09:50</td>
+<td>08 Apr 2025 09:50</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S04</td>
+<td>rain_mm</td>
+<td>02 Apr 2025 16:10</td>
+<td>02 Apr 2025 16:10</td>
+<td>isolated spike</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S04</td>
+<td>rain_mm</td>
+<td>02 Apr 2025 16:20</td>
+<td>02 Apr 2025 16:20</td>
+<td>isolated spike</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S04</td>
+<td>rain_mm</td>
+<td>02 Apr 2025 16:30</td>
+<td>02 Apr 2025 16:30</td>
+<td>isolated spike</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>07 Mar 2025 12:10</td>
+<td>07 Mar 2025 12:10</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>07 Mar 2025 13:30</td>
+<td>07 Mar 2025 15:00</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>07 Mar 2025 15:40</td>
+<td>07 Mar 2025 17:00</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>07 Mar 2025 17:50</td>
+<td>07 Mar 2025 21:40</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>07 Mar 2025 22:40</td>
+<td>11 Mar 2025 00:00</td>
+<td>physical range violation</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S05</td>
+<td>rh_pct</td>
+<td>30 Mar 2025 04:30</td>
+<td>30 Mar 2025 06:40</td>
+<td>stuck sensor</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S06</td>
+<td>rh_pct</td>
+<td>29 Mar 2025 22:50</td>
+<td>30 Mar 2025 01:10</td>
+<td>stuck sensor</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S08</td>
+<td>all</td>
+<td>16 Mar 2025 14:00</td>
+<td>18 Mar 2025 01:30</td>
+<td>missing interval</td>
+<td>exclude</td>
+</tr>
+<tr>
+<td>S08</td>
+<td>all</td>
+<td>05 Apr 2025 00:00</td>
+<td>05 Apr 2025 23:50</td>
+<td>duplicate timestamp</td>
+<td>exclude</td>
+</tr>
+</tbody></table>
+
+<h2>Recommended Technician Visit</h2>
+<div class="highlight">
+  <strong>Priority station: S06</strong><br>
+  S06 (South Hills Fire Station) shows a logger clock that is approximately 6 hours behind GPS UTC starting 2025-03-24, coinciding with a battery swap and reboot. GPS records confirm 439 GPRMC sentences where the logger timestamp is consistently 6 h earlier than GPS time. This affects all channels for the remainder of the recording period. A one-hour visit can verify the current clock state, correct it, and retrieve any locally buffered data. S07 (anemometer swap) is the second candidate but its wind data is not recoverable by inspection alone.
+</div>
+
+<h2>Main Unresolved Uncertainty</h2>
+<p>S05 GPS coordinates differ from the install sheet by ~20 km in latitude. It is unclear whether the install sheet has an error or the GPS receiver is reporting a position from a different unit. This does not affect the sensor measurements but means we cannot verify station elevation independently. The second uncertainty is whether S07 post-swap wind data represents actual wind conditions or a systematic calibration offset introduced by the new anemometer brand.</p>
+
+<h2>Recommendation for Spring Climate Summary</h2>
+<div class="good">
+  <strong>Proceed with analysis</strong> using the following precautions:
+  <ul style="margin-left:16px; margin-top:4px;">
+    <li>Exclude all intervals flagged <em>exclude</em> in flags.csv.</li>
+    <li>Treat pressure_hpa for S02 before and after 2025-03-21 11:00 as two separate series
+        until recalibration data is obtained.</li>
+    <li>Treat wind_kmh for S07 after 2025-03-26 as potentially from a differently-calibrated
+        anemometer; compare with neighbouring stations before computing averages.</li>
+    <li>For S06, timestamps between 2025-03-24 and end of record may be 6 hours early;
+        diurnal analyses should account for this pending a clock-correction visit.</li>
+    <li>S08 April 5 data is duplicated; use only the first occurrence of each timestamp.</li>
+  </ul>
+</div>
+
+<p class="meta" style="margin-top:14px;">
+  This report was generated automatically by the weather-checker program.
+  All flag counts and metrics are computed from flags.csv; no values are estimated.
+  See flags.csv and DECISIONS.md for full evidence and uncertainty discussion.
+</p>
+
+</body>
+</html>
