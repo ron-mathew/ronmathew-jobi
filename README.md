@@ -92,25 +92,27 @@ The pipeline generates `flags.csv` and `report.html` in its configured output lo
 
 ## Expected input structure
 
+## Expected input structure
+
 ```text
 data-pack/
-â”œâ”€â”€ stations.csv
-â”œâ”€â”€ data/
-â”‚   â”œâ”€â”€ S01.csv
-â”‚   â”œâ”€â”€ S02.csv
-â”‚   â””â”€â”€ ...
-â”œâ”€â”€ gps/
-â”‚   â”œâ”€â”€ S01.nmea
-â”‚   â””â”€â”€ ...
-â””â”€â”€ maintenance_log.md
+├── stations.csv
+├── data/
+│   ├── S01.csv
+│   ├── S02.csv
+│   └── ...
+├── gps/
+│   ├── S01.nmea
+│   └── ...
+└── maintenance_log.md
 ```
 
-Station identifiers are intended to be discovered dynamically from the input metadata and available station files rather than hardcoded to the supplied station IDs.
+Station identifiers are discovered dynamically from the input metadata and available station files rather than hardcoded to the supplied station IDs.
 
-- **`stations.csv`** â€” Station metadata, including identifiers, names, coordinates, elevation, installation date, and logging interval.
-- **`data/Sxx.csv`** â€” Meteorological observations such as `timestamp_utc`, `temp_c`, `rh_pct`, `pressure_hpa`, `wind_kmh`, `wind_dir_deg`, `rain_mm`, and `ghi_wm2`.
-- **`gps/Sxx.nmea`** â€” NMEA 0183 GPS sentences, including GPRMC and GPGGA where available.
-- **`maintenance_log.md`** â€” Volunteer maintenance records used as contextual evidence when investigating potential hardware-related changes.
+- **`stations.csv`** — Station metadata, including identifiers, names, coordinates, elevation, installation date, and logging interval.
+- **`data/Sxx.csv`** — Meteorological observations such as `timestamp_utc`, `temp_c`, `rh_pct`, `pressure_hpa`, `wind_kmh`, `wind_dir_deg`, `rain_mm`, and `ghi_wm2`.
+- **`gps/Sxx.nmea`** — NMEA 0183 GPS sentences, including GPRMC and GPGGA where available.
+- **`maintenance_log.md`** — Volunteer maintenance records used as contextual evidence when investigating potential hardware-related changes.
 
 GPS logs and maintenance notes may be absent where permitted by the input contract. Missing optional evidence should not automatically be interpreted as proof that a station is healthy.
 
