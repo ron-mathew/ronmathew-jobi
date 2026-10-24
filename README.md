@@ -224,15 +224,3 @@ These are investigation hypotheses and operational recommendations, not claims t
 The assignment identifies the weather values as being based on ERA5 reanalysis from the **Copernicus Climate Change Service**, accessed through the **Open-Meteo archive API**, under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 
 Station names, people, hardware, and maintenance notes are described as fictional in the assignment data pack. Refer to the original assignment materials for the authoritative dataset provenance and licence terms.
-
-## Before submission
-
-- [ ] Run the checker against the supplied data pack and regenerate `flags.csv` and `report.html`.
-- [ ] Run the complete test suite and record the actual final result.
-- [ ] Measure pipeline runtime separately from test-suite runtime.
-- [ ] Confirm that documented flag totals match the generated manifest.
-- [ ] Verify that the CLI examples and optional arguments match the implementation.
-- [ ] Review `DECISIONS.md` against the final code and generated output.
-- [ ] Inspect public AI logs for credentials, private information, or unnecessary personal data.
-- [ ] Confirm that raw dataset files and local environment files have not been committed.
-- [ ] Ensure the demonstration link opens correctly.
