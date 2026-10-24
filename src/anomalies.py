@@ -517,18 +517,19 @@ def check_rain_gauge_blockage(
                             corroboration = f" Maintenance note {ev['date'].date()}: '{ev['note']}'."
 
         action = "exclude" if inconsistent else "keep"
-        reason = (
-            "Concurrent RH=%s%%, GHI=%s W/m² are inconsistent with precipitation. "
-            "Likely blocked gauge releasing accumulated debris.%s"
-        ) % (f"{rh:.0f}" if not pd.isna(rh) else "NA",
-             f"{ghi:.0f}" if not pd.isna(ghi) else "NA",
-             corroboration)
-
-        if not inconsistent:
+        if inconsistent:
             reason = (
-                f"Large rain interval ({val} mm / 10 min). "
-                f"Concurrent RH={rh:.0f}%, GHI={ghi:.0f} W/m²; conditions partially "
-                f"consistent with precipitation. Retained with caveat.{corroboration}"
+                f"Suspected rain gauge blockage release: apparent rainfall of {val:.1f} mm in 10 min "
+                f"recorded under sunny, dry conditions (RH={rh:.0f}%, GHI={ghi:.0f} W/m²), physically "
+                f"incompatible with real precipitation.{corroboration} "
+                "Represents delayed drainage of trapped water or bucket agitation during funnel "
+                "cleaning rather than meteorological rainfall; observation excluded."
+            )
+        else:
+            reason = (
+                f"Large rain interval ({val:.1f} mm in 10 min). Concurrent conditions "
+                f"(RH={rh:.0f}%, GHI={ghi:.0f} W/m²) partially consistent with precipitation; "
+                f"retained with caveat.{corroboration}"
             )
 
         fb.add(
@@ -538,9 +539,5 @@ def check_rain_gauge_blockage(
             end_utc=ts,
             issue="isolated_spike",
             action=action,
-            note=(
-                f"Rain={val} mm in 10 min at {ts}. {reason}"
-                if inconsistent
-                else reason
-            ),
+            note=reason,
         )

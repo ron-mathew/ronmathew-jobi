@@ -1,6 +1,6 @@
-Ron Mathew  
-ronmathew@example.com  
-[Three-minute demonstration video](https://youtu.be/placeholder-video-link)  
+Ron Mathew Jobi
+ronmathew2210@gmail.com
+[Three-minute demonstration video](https://youtu.be/Pl7q4AyhxJ0)  
 `python checker.py /path/to/data-pack`
 
 # Ridgeline Schools Weather Network: Data Quality Checker
