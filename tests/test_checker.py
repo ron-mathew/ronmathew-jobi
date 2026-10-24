@@ -22,9 +22,6 @@ Implements all 16 required test scenarios from the Master Build Prompt:
 
 from __future__ import annotations
 
-import io
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -51,14 +48,15 @@ from src.ingestion import (
     find_data_pack,
     load_stations,
     discover_station_files,
-    load_station_data,
-    load_maintenance_log,
 )
 
 
-# ── Helper fixture builders ──────────────────────────────────────────────────
+# ── Helper fixture builder ────────────────────────────────────────────────
 
-def _make_sample_df(n_rows: int = 30, start_time: str = "2025-03-01 00:00") -> pd.DataFrame:
+def _make_sample_df(
+    n_rows: int = 30,
+    start_time: str = "2025-03-01 00:00",
+) -> pd.DataFrame:
     """Create a realistic baseline DataFrame with 10-minute intervals."""
     ts = pd.date_range(start_time, periods=n_rows, freq="10min")
     return pd.DataFrame({
@@ -73,31 +71,36 @@ def _make_sample_df(n_rows: int = 30, start_time: str = "2025-03-01 00:00") -> p
     })
 
 
-# ── 1. Valid extreme temperature ─────────────────────────────────────────────
+# ── 1. Valid extreme temperature ──────────────────────────────────────────
 
 def test_valid_extreme_temperature():
-    """Valid cold temperature (-25°C at mountain station) should NOT be flagged."""
+    """Valid cold temperature (-25°C at mountain station) should not be flagged."""
     df = _make_sample_df(30)
-    df.loc[10, "temp_c"] = -25.0  # Cold but physically plausible for high Colorado altitude
+    df.loc[10, "temp_c"] = -25.0
     fb = FlagBuilder()
+
     check_physical_ranges("S01", df, fb, elevation_m=2950.0)
 
     flags = fb.to_dataframe()
     temp_flags = flags[flags["channel"] == "temp_c"]
-    assert len(temp_flags) == 0, f"Expected no flags for -25°C, got: {temp_flags.to_dict()}"
+    assert len(temp_flags) == 0, (
+        f"Expected no flags for -25°C, got: {temp_flags.to_dict()}"
+    )
 
 
-# ── 2. Impossible humidity reading ───────────────────────────────────────────
+# ── 2. Impossible humidity ────────────────────────────────────────────────
 
 def test_impossible_humidity():
-    """RH > 100% or < 0% must be flagged and excluded."""
+    """RH above 100% must be flagged and excluded."""
     df = _make_sample_df(30)
-    df.loc[5:8, "rh_pct"] = 104.0  # Physical impossibility
+    df.loc[5:8, "rh_pct"] = 104.0
     fb = FlagBuilder()
+
     check_rh_overrange("S05", df, fb)
 
     flags = fb.to_dataframe()
     assert len(flags) > 0
+
     rh_flag = flags.iloc[0]
     assert rh_flag["channel"] == "rh_pct"
     assert rh_flag["issue"] == "physical_range_violation"
@@ -105,233 +108,296 @@ def test_impossible_humidity():
     assert "100%" in rh_flag["note"] or "overrange" in rh_flag["note"]
 
 
-# ── 3. Identical duplicate records ───────────────────────────────────────────
+# ── 3. Identical duplicate records ────────────────────────────────────────
 
 def test_identical_duplicate_records():
-    """Identical duplicate rows should be flagged for exclusion and deduplicated."""
+    """Identical duplicate rows should be flagged and deduplicated."""
     df = _make_sample_df(20)
-    # Duplicate rows 5 to 7
-    dups = df.iloc[5:8].copy()
-    df_with_dups = pd.concat([df, dups]).reset_index(drop=True)
+    duplicates = df.iloc[5:8].copy()
+    df_with_duplicates = pd.concat(
+        [df, duplicates], ignore_index=True
+    )
 
     fb = FlagBuilder()
-    df_cleaned = check_structural("S08", df_with_dups, fb)
+    df_cleaned = check_structural("S08", df_with_duplicates, fb)
 
     flags = fb.to_dataframe()
-    dup_flags = flags[flags["issue"] == "duplicate_timestamp"]
-    assert len(dup_flags) == 1
-    assert dup_flags.iloc[0]["action"] == "exclude"
-    assert len(df_cleaned) == len(df), "Cleaned DataFrame should have duplicates removed"
+    duplicate_flags = flags[flags["issue"] == "duplicate_timestamp"]
+
+    assert len(duplicate_flags) == 1
+    assert duplicate_flags.iloc[0]["action"] == "exclude"
+    assert len(df_cleaned) == len(df)
 
 
-# ── 4. Conflicting records with same timestamp ────────────────────────────────
+# ── 4. Conflicting duplicate records ──────────────────────────────────────
 
 def test_conflicting_duplicate_records():
-    """Conflicting records with the same timestamp should be flagged as 'keep' with ambiguity note."""
+    """Conflicting rows must be flagged and both retained after validation."""
     df = _make_sample_df(20)
+
     conflict_row = df.iloc[[10]].copy()
-    conflict_row["temp_c"] = 25.0  # Different from original 7.6°C
-    df_with_conflict = pd.concat([df, conflict_row]).reset_index(drop=True)
+    conflict_timestamp = conflict_row["timestamp_utc"].iloc[0]
+    original_temp = df.loc[10, "temp_c"]
+    conflict_row.loc[:, "temp_c"] = 25.0
+
+    df_with_conflict = pd.concat(
+        [df, conflict_row], ignore_index=True
+    )
 
     fb = FlagBuilder()
-    check_structural("S06", df_with_conflict, fb)
+    df_cleaned = check_structural("S06", df_with_conflict, fb)
 
     flags = fb.to_dataframe()
-    conf_flags = flags[flags["issue"] == "duplicate_timestamp"]
-    assert len(conf_flags) == 1
-    assert conf_flags.iloc[0]["action"] == "keep"
-    assert "conflicting" in conf_flags.iloc[0]["note"].lower()
+    conflict_flags = flags[flags["issue"] == "duplicate_timestamp"]
+
+    assert len(conflict_flags) == 1
+    assert conflict_flags.iloc[0]["action"] == "keep"
+    assert "conflicting" in conflict_flags.iloc[0]["note"].lower()
+
+    retained = df_cleaned[
+        df_cleaned["timestamp_utc"] == conflict_timestamp
+    ]
+
+    assert len(retained) == 2, (
+        "Both rows sharing the conflicting timestamp must remain."
+    )
+
+    retained_temps = set(retained["temp_c"].tolist())
+    assert original_temp in retained_temps
+    assert 25.0 in retained_temps
 
 
-# ── 5. Missing ten-minute intervals ──────────────────────────────────────────
+# ── 5. Missing ten-minute intervals ───────────────────────────────────────
 
 def test_missing_ten_minute_intervals():
-    """A gap greater than 10 minutes should be flagged as missing_interval."""
+    """A gap greater than 10 minutes should be flagged."""
     df = _make_sample_df(30)
-    # Remove rows 10 through 20 (creating a 110-minute outage)
-    df_with_gap = pd.concat([df.iloc[:10], df.iloc[20:]]).reset_index(drop=True)
+    df_with_gap = pd.concat(
+        [df.iloc[:10], df.iloc[20:]],
+        ignore_index=True,
+    )
 
     fb = FlagBuilder()
     check_structural("S08", df_with_gap, fb)
 
     flags = fb.to_dataframe()
     gap_flags = flags[flags["issue"] == "missing_interval"]
+
     assert len(gap_flags) == 1
     assert gap_flags.iloc[0]["action"] == "exclude"
-    assert "absent" in gap_flags.iloc[0]["note"].lower() or "missing" in gap_flags.iloc[0]["note"].lower()
+    assert (
+        "absent" in gap_flags.iloc[0]["note"].lower()
+        or "missing" in gap_flags.iloc[0]["note"].lower()
+    )
 
 
-# ── 6. Isolated spike detection ──────────────────────────────────────────────
+# ── 6. Isolated spike ─────────────────────────────────────────────────────
 
 def test_isolated_spike():
-    """A single isolated temperature jump (e.g. -40°C open circuit) should be flagged."""
+    """An isolated -40°C temperature reading should be flagged."""
     df = _make_sample_df(40)
-    df.loc[20, "temp_c"] = -40.0  # Disconnection code in a series of +5 to +10°C
+    df.loc[20, "temp_c"] = -40.0
     fb = FlagBuilder()
+
     check_isolated_spikes("S03", df, fb)
 
     flags = fb.to_dataframe()
     spike_flags = flags[flags["issue"] == "isolated_spike"]
+
     assert len(spike_flags) == 1
     assert spike_flags.iloc[0]["channel"] == "temp_c"
     assert spike_flags.iloc[0]["action"] == "exclude"
     assert "-40.0" in spike_flags.iloc[0]["note"]
 
 
-# ── 7. Prolonged constant sensor value (stuck sensor) ─────────────────────────
+# ── 7. Stuck sensor ───────────────────────────────────────────────────────
 
 def test_stuck_sensor():
-    """A temperature sensor constant for >= 12 intervals (2 hours) must be flagged as stuck_sensor."""
+    """A temperature sensor constant for >=12 intervals should be flagged."""
     df = _make_sample_df(40)
-    df.loc[10:25, "temp_c"] = 6.5  # 16 consecutive identical readings
-
+    df.loc[10:25, "temp_c"] = 6.5
     fb = FlagBuilder()
+
     check_stuck_sensor("S03", df, fb)
 
     flags = fb.to_dataframe()
-    temp_stuck = flags[(flags["issue"] == "stuck_sensor") & (flags["channel"] == "temp_c")]
-    assert len(temp_stuck) == 1
-    assert temp_stuck.iloc[0]["action"] == "exclude"
+    stuck_flags = flags[
+        (flags["issue"] == "stuck_sensor")
+        & (flags["channel"] == "temp_c")
+    ]
+
+    assert len(stuck_flags) == 1
+    assert stuck_flags.iloc[0]["action"] == "exclude"
 
 
-# ── 8. Zero-MAD channel safety ───────────────────────────────────────────────
+# ── 8. Zero-MAD channel safety ───────────────────────────────────────────
 
 def test_zero_mad_channel():
-    """A constant series (MAD=0) should not cause divide-by-zero crashes."""
+    """A constant series must not cause divide-by-zero errors."""
     df = _make_sample_df(30)
-    df["temp_c"] = 15.0  # Perfectly constant, MAD == 0
+    df["temp_c"] = 15.0
     fb = FlagBuilder()
 
-    # Must complete cleanly without Exception
     check_isolated_spikes("S01", df, fb)
-    assert True
 
 
-# ── 9. Malformed GPS sentence handling ───────────────────────────────────────
+# ── 9. Malformed GPS sentence handling ───────────────────────────────────
 
 def test_malformed_gps_sentence(tmp_path):
-    """Malformed or truncated NMEA lines should be handled gracefully without crashing."""
+    """Malformed NMEA lines should be handled without crashing."""
     gps_file = tmp_path / "S01.nmea"
     gps_file.write_text(
         "2025-03-01 00:00,$GPRMC,INVALID,CORRUPTED\n"
         "2025-03-01 01:00,NOT_AN_NMEA_SENTENCE\n"
-        "2025-03-01 02:00,$GPRMC,020000.00,A,3945.2400,N,10508.7600,W,0.0,0.0,010325,,,A*60\n",
+        "2025-03-01 02:00,$GPRMC,020000.00,A,3945.2400,N,"
+        "10508.7600,W,0.0,0.0,010325,,,A*60\n",
         encoding="utf-8",
     )
+
     fb = FlagBuilder()
-    check_gps("S01", tmp_path, fb, install_lat=39.7540, install_lon=-105.1460)
+    check_gps(
+        "S01",
+        tmp_path,
+        fb,
+        install_lat=39.7540,
+        install_lon=-105.1460,
+    )
 
-    # Should not raise exception
     flags = fb.to_dataframe()
-    # Malformed sentences note should be present
-    mal_flags = flags[flags["issue"] == "gps_invalid_sentence"]
-    assert len(mal_flags) >= 1
+    malformed_flags = flags[flags["issue"] == "gps_invalid_sentence"]
+    assert len(malformed_flags) >= 1
 
 
-# ── 10. Valid GPS sentence with clock offset ─────────────────────────────────
+# ── 10. Valid GPS sentence with clock offset ──────────────────────────────
 
 def test_valid_gps_sentence_clock_offset(tmp_path):
-    """When logger clock differs from GPS UTC by > 2 min, flag as clock_offset."""
+    """A logger clock offset exceeding two minutes should be flagged."""
     gps_file = tmp_path / "S06.nmea"
-    # Logger says 10:00, but GPS says 16:00:00 UTC (6 hours ahead)
     lines = []
-    for h in range(5):
-        logger_ts = f"2025-03-24 {10+h:02d}:00"
-        gps_time_str = f"{16+h:02d}0000.00"
-        lines.append(f"{logger_ts},$GPRMC,{gps_time_str},A,3945.2400,N,10508.7600,W,0.0,0.0,240325,,,A*60")
+
+    for hour in range(5):
+        logger_timestamp = f"2025-03-24 {10 + hour:02d}:00"
+        gps_time = f"{16 + hour:02d}0000.00"
+        lines.append(
+            f"{logger_timestamp},$GPRMC,{gps_time},A,"
+            "3945.2400,N,10508.7600,W,0.0,0.0,240325,,,A*60"
+        )
+
     gps_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     fb = FlagBuilder()
-    check_gps("S06", tmp_path, fb, install_lat=39.7540, install_lon=-105.1460)
+    check_gps(
+        "S06",
+        tmp_path,
+        fb,
+        install_lat=39.7540,
+        install_lon=-105.1460,
+    )
 
     flags = fb.to_dataframe()
     clock_flags = flags[flags["issue"] == "clock_offset"]
+
     assert len(clock_flags) == 1
     assert clock_flags.iloc[0]["action"] == "keep"
-    assert "6.00" in clock_flags.iloc[0]["note"] or "hour" in clock_flags.iloc[0]["note"]
+    assert (
+        "6.00" in clock_flags.iloc[0]["note"]
+        or "hour" in clock_flags.iloc[0]["note"].lower()
+    )
 
 
-# ── 11. Nighttime zero irradiance exemption ──────────────────────────────────
+# ── 11. Nighttime zero irradiance ────────────────────────────────────────
 
 def test_nighttime_zero_irradiance():
-    """GHI at 0.0 W/m² during nighttime must NOT be flagged as stuck_sensor."""
+    """Zero GHI during nighttime should not be flagged as a stuck sensor."""
     df = _make_sample_df(30)
-    df["ghi_wm2"] = 0.0  # Constant zero throughout night
+    df["ghi_wm2"] = 0.0
     fb = FlagBuilder()
+
     check_stuck_sensor("S01", df, fb)
 
     flags = fb.to_dataframe()
     ghi_flags = flags[flags["channel"] == "ghi_wm2"]
-    assert len(ghi_flags) == 0, "Nighttime zero GHI must be exempt from stuck sensor check"
+    assert len(ghi_flags) == 0
 
 
-# ── 12. Real-looking rainfall event retention ────────────────────────────────
+# ── 12. Real-looking rainfall event ──────────────────────────────────────
 
 def test_real_rainfall_event():
-    """Rainfall during saturated conditions (RH=95%, GHI=20) should be retained, not excluded."""
+    """Rain with high humidity and low irradiance should be retained."""
     df = _make_sample_df(30)
-    df.loc[15, "rain_mm"] = 6.0  # Significant rain
-    df.loc[15, "rh_pct"] = 95.0   # Saturated, consistent with rain
-    df.loc[15, "ghi_wm2"] = 25.0  # Overcast dark skies, consistent with rain
-
+    df.loc[15, "rain_mm"] = 6.0
+    df.loc[15, "rh_pct"] = 95.0
+    df.loc[15, "ghi_wm2"] = 25.0
     fb = FlagBuilder()
+
     check_rain_gauge_blockage("S01", df, fb, maintenance_events=[])
 
     flags = fb.to_dataframe()
     rain_flags = flags[flags["channel"] == "rain_mm"]
+
     assert len(rain_flags) == 1
-    assert rain_flags.iloc[0]["action"] == "keep", "Consistent rainfall conditions must be kept"
+    assert rain_flags.iloc[0]["action"] == "keep"
 
 
-# ── 13. Maintenance-associated level shift ───────────────────────────────────
+# ── 13. Maintenance-associated level shift ────────────────────────────────
 
 def test_maintenance_associated_level_shift():
-    """Pressure board swap mentioned in maintenance notes triggers abrupt_level_shift."""
-    # 100 observations before event, 100 observations after event
-    ts = pd.date_range("2025-03-20 00:00", periods=200, freq="10min")
-    p_before = np.full(100, 830.0)
-    p_after = np.full(100, 840.4)  # Step shift of +10.4 hPa
+    """A pressure-board maintenance event should correlate with a level shift."""
+    timestamps = pd.date_range(
+        "2025-03-20 00:00", periods=200, freq="10min"
+    )
+    pressure_before = np.full(100, 830.0)
+    pressure_after = np.full(100, 840.4)
+
     df = pd.DataFrame({
-        "timestamp_utc": ts,
-        "pressure_hpa": np.concatenate([p_before, p_after]),
+        "timestamp_utc": timestamps,
+        "pressure_hpa": np.concatenate(
+            [pressure_before, pressure_after]
+        ),
     })
-    event_ts = ts[100]  # Exact transition point
-    events = [{
+
+    event_timestamp = timestamps[100]
+    maintenance_events = [{
         "station_id": "S02",
-        "date": event_ts,
+        "date": event_timestamp,
         "note": "Swapped the pressure board with the spare from the cupboard",
     }]
+
     fb = FlagBuilder()
-    check_abrupt_level_shift("S02", df, fb, maintenance_events=events)
+    check_abrupt_level_shift(
+        "S02", df, fb, maintenance_events=maintenance_events
+    )
 
     flags = fb.to_dataframe()
     shift_flags = flags[flags["issue"] == "abrupt_level_shift"]
+
     assert len(shift_flags) == 1
     assert shift_flags.iloc[0]["action"] == "correct"
     assert "+10.4" in shift_flags.iloc[0]["note"]
 
 
-# ── 14. Empty or malformed input folder handling ─────────────────────────────
+# ── 14. Empty or malformed input folder ──────────────────────────────────
 
 def test_empty_or_malformed_input_folder(tmp_path):
-    """Calling find_data_pack on a non-existent or empty folder raises SystemExit with helpful message."""
+    """An empty data-pack folder should raise SystemExit with a helpful message."""
     empty_dir = tmp_path / "empty_pack"
     empty_dir.mkdir()
+
     with pytest.raises(SystemExit) as exc:
         find_data_pack(empty_dir)
+
     assert "missing" in str(exc.value).lower()
 
 
-# ── 15. Dataset with different station IDs ───────────────────────────────────
+# ── 15. Different station IDs ────────────────────────────────────────────
 
 def test_different_station_ids(tmp_path):
-    """Checker must dynamically discover stations with arbitrary IDs (e.g. X99, Z01)."""
+    """The checker should discover arbitrary station IDs dynamically."""
     pack_dir = tmp_path / "custom_pack"
     pack_dir.mkdir()
     data_dir = pack_dir / "data"
     data_dir.mkdir()
 
-    # Custom stations.csv
     stations_csv = pack_dir / "stations.csv"
     stations_csv.write_text(
         "station_id,name,lat,lon,elevation_m,installed,logger_interval_min\n"
@@ -340,43 +406,44 @@ def test_different_station_ids(tmp_path):
         encoding="utf-8",
     )
 
-    # Custom data files
-    df_x99 = _make_sample_df(20)
-    df_x99.to_csv(data_dir / "X99.csv", index=False)
-    df_z01 = _make_sample_df(20)
-    df_z01.to_csv(data_dir / "Z01.csv", index=False)
+    _make_sample_df(20).to_csv(data_dir / "X99.csv", index=False)
+    _make_sample_df(20).to_csv(data_dir / "Z01.csv", index=False)
 
-    s_csv, d_dir, g_dir, m_log = find_data_pack(pack_dir)
-    st_df = load_stations(s_csv)
-    files = discover_station_files(d_dir, st_df["station_id"].tolist())
+    stations_path, discovered_data_dir, _, _ = find_data_pack(pack_dir)
+    stations_df = load_stations(stations_path)
+    files = discover_station_files(
+        discovered_data_dir,
+        stations_df["station_id"].tolist(),
+    )
 
     assert "X99" in files
     assert "Z01" in files
     assert len(files) == 2
 
 
-# ── 16. Repeated runs producing identical output (determinism) ───────────────
+# ── 16. Deterministic output ──────────────────────────────────────────────
 
-def test_deterministic_output(tmp_path):
-    """Multiple runs of FlagBuilder on identical inputs must produce identical CSV output."""
-    def _run():
+def test_deterministic_output():
+    """Repeated runs on identical inputs should produce identical CSV output."""
+    def run_checks():
         fb = FlagBuilder()
         df = _make_sample_df(30)
         df.loc[5, "temp_c"] = -40.0
         df.loc[10:13, "rh_pct"] = 104.0
+
         check_isolated_spikes("S03", df, fb)
         check_rh_overrange("S05", df, fb)
         return fb.to_dataframe().to_csv(index=False)
 
-    run1 = _run()
-    run2 = _run()
-    assert run1 == run2, "Output must be strictly deterministic across repeated runs"
+    assert run_checks() == run_checks(), (
+        "Output must be deterministic across repeated runs."
+    )
 
 
-# ── Schema and Action Integrity Tests ────────────────────────────────────────
+# ── Schema and action integrity ──────────────────────────────────────────
 
 def test_flags_csv_schema_and_actions():
-    """Verify FlagBuilder enforces exactly the 7 required columns and valid actions."""
+    """FlagBuilder should enforce the required schema and valid actions."""
     fb = FlagBuilder()
     fb.add(
         station_id="S01",
@@ -387,12 +454,11 @@ def test_flags_csv_schema_and_actions():
         action="exclude",
         note="Valid test note",
     )
-    df = fb.to_dataframe()
 
+    df = fb.to_dataframe()
     assert list(df.columns) == OUTPUT_COLUMNS
     assert df.iloc[0]["action"] in VALID_ACTIONS
 
-    # Invalid action should raise ValueError
     with pytest.raises(ValueError):
         fb.add(
             station_id="S01",

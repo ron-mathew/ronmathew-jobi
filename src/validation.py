@@ -8,30 +8,40 @@ numeric parsing failures.
 
 from __future__ import annotations
 
-from typing import List
-
 import pandas as pd
 
 from .flag_builder import FlagBuilder
 
 EXPECTED_INTERVAL = pd.Timedelta("10min")
-# Maximum gap size to call a single "missing_interval" event
-# (larger gaps span many intervals but are one contiguous outage)
 
 
 def check_structural(
     sid: str, df: pd.DataFrame, fb: FlagBuilder
 ) -> pd.DataFrame:
     """
-    Run all structural/temporal checks.  Returns a cleaned copy of df
-    with rows sorted and duplicate timestamps resolved for downstream use.
+    Run structural and temporal checks.
+
+    Returns a chronologically sorted copy of df. Identical duplicate
+    timestamps are reduced to one row. Conflicting duplicate timestamps
+    are retained for downstream review and flagged as ambiguous.
     """
-    # 1. Missing-value count from numeric coercion
+    df = df.copy()
+
+    # 1. Missing or invalid numeric values
     sensor_cols = [
-        "temp_c", "rh_pct", "pressure_hpa",
-        "wind_kmh", "wind_dir_deg", "rain_mm", "ghi_wm2",
+        "temp_c",
+        "rh_pct",
+        "pressure_hpa",
+        "wind_kmh",
+        "wind_dir_deg",
+        "rain_mm",
+        "ghi_wm2",
     ]
+
     for col in sensor_cols:
+        if col not in df.columns:
+            continue
+
         bad = df[col].isna()
         if bad.any():
             bad_rows = df.loc[bad, "timestamp_utc"]
@@ -40,6 +50,7 @@ def check_structural(
                 end = bad_rows.max()
             else:
                 start = end = pd.NaT
+
             fb.add(
                 station_id=sid,
                 channel=col,
@@ -69,22 +80,25 @@ def check_structural(
                 "cannot be placed in time. Rows excluded."
             ),
         )
-        df = df[~bad_ts].copy()
+        df = df.loc[~bad_ts].copy()
 
     # Sort chronologically for further checks
     df = df.sort_values("timestamp_utc").reset_index(drop=True)
 
     # 3. Duplicate timestamps
     dup_mask = df.duplicated("timestamp_utc", keep=False)
+
     if dup_mask.any():
-        dup_groups = df[dup_mask].groupby("timestamp_utc")
+        dup_groups = df.loc[dup_mask].groupby("timestamp_utc")
         sensor_cols_dup = [c for c in sensor_cols if c in df.columns]
+
         identical_dups = []
         conflicting_dups = []
 
         for ts, grp in dup_groups:
-            # Check if all duplicate rows are identical in sensor values
+            # Compare sensor values, treating matching missing values equally
             vals = grp[sensor_cols_dup].drop_duplicates()
+
             if len(vals) == 1:
                 identical_dups.append(ts)
             else:
@@ -93,6 +107,7 @@ def check_structural(
         if identical_dups:
             s = min(identical_dups)
             e = max(identical_dups)
+
             fb.add(
                 station_id=sid,
                 channel="all",
@@ -101,16 +116,30 @@ def check_structural(
                 issue="duplicate_timestamp",
                 action="exclude",
                 note=(
-                    f"{len(identical_dups)} identical duplicate timestamps found "
-                    f"({s} to {e}). Extra copies excluded; one copy retained."
+                    f"{len(identical_dups)} identical duplicate timestamps "
+                    f"found ({s} to {e}). Extra copies excluded; "
+                    "one copy retained."
                 ),
             )
-            # Keep first occurrence of identical duplicates
-            df = df.drop_duplicates("timestamp_utc", keep="first").reset_index(drop=True)
+
+            # Remove redundant copies only at identical duplicate timestamps.
+            identical_ts = set(identical_dups)
+            identical_mask = df["timestamp_utc"].isin(identical_ts)
+            df_identical = df.loc[identical_mask].drop_duplicates(
+                subset=["timestamp_utc", *sensor_cols_dup],
+                keep="first",
+            )
+            df_other = df.loc[~identical_mask]
+            df = (
+                pd.concat([df_other, df_identical], axis=0)
+                .sort_values("timestamp_utc")
+                .reset_index(drop=True)
+            )
 
         if conflicting_dups:
             s = min(conflicting_dups)
             e = max(conflicting_dups)
+
             fb.add(
                 station_id=sid,
                 channel="all",
@@ -119,18 +148,20 @@ def check_structural(
                 issue="duplicate_timestamp",
                 action="keep",
                 note=(
-                    f"{len(conflicting_dups)} conflicting duplicate timestamps: "
-                    f"two records with same timestamp but different sensor values "
-                    f"({s} to {e}). Ambiguity unresolved; original rows retained "
-                    "pending further investigation."
+                    f"{len(conflicting_dups)} conflicting duplicate timestamps "
+                    f"found ({s} to {e}). Sensor values differ for records "
+                    "sharing a timestamp. All conflicting rows are retained "
+                    "for investigation; no authoritative record is selected."
                 ),
             )
-            # Keep first for downstream but flag as ambiguous
-            df = df.drop_duplicates("timestamp_utc", keep="first").reset_index(drop=True)
 
-    # 4. Out-of-order timestamps (after dedup sort, should be none, but verify)
+            # Intentionally retain all conflicting rows.
+
+    # 4. Out-of-order timestamps
+    # Rows are sorted above; this is retained as a defensive check.
     diffs = df["timestamp_utc"].diff()
     neg = diffs[diffs < pd.Timedelta(0)]
+
     if not neg.empty:
         fb.add(
             station_id=sid,
@@ -140,19 +171,25 @@ def check_structural(
             issue="out_of_order_timestamp",
             action="exclude",
             note=(
-                f"{len(neg)} out-of-order timestamps detected after deduplication. "
-                "These rows cannot be reliably placed in the time sequence."
+                f"{len(neg)} out-of-order timestamps detected after sorting. "
+                "These rows require further inspection."
             ),
         )
 
-    # 5. Missing 10-minute intervals (gaps > 10 min)
+    # 5. Missing 10-minute intervals
+    # Duplicate timestamps yield a zero-minute difference and are not gaps.
     diffs = df["timestamp_utc"].diff()
     gap_mask = diffs > EXPECTED_INTERVAL
+
     for idx in df.index[gap_mask]:
-        gap_start = df.loc[idx - 1, "timestamp_utc"] if idx > 0 else df.loc[idx, "timestamp_utc"]
+        if idx == 0:
+            continue
+
+        gap_start = df.loc[idx - 1, "timestamp_utc"]
         gap_end = df.loc[idx, "timestamp_utc"]
         gap_duration = diffs.loc[idx]
         n_missing = int(gap_duration / EXPECTED_INTERVAL) - 1
+
         fb.add(
             station_id=sid,
             channel="all",
