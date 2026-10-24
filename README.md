@@ -12,23 +12,22 @@ The project emphasizes more than anomaly detection: it distinguishes likely corr
 
 ```text
 weather-checker/
-â”œâ”€â”€ checker.py
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â”œâ”€â”€ ingestion.py
-â”‚   â”œâ”€â”€ validation.py
-â”‚   â”œâ”€â”€ anomalies.py
-â”‚   â”œâ”€â”€ gps.py
-â”‚   â”œâ”€â”€ flag_builder.py
-â”‚   â””â”€â”€ reporting.py
-â”œâ”€â”€ tests/
-â”‚   â””â”€â”€ test_checker.py
-â”œâ”€â”€ ai_logs/
-â”œâ”€â”€ DECISIONS.md
-â”œâ”€â”€ flags.csv
-â”œâ”€â”€ report.html
-â”œâ”€â”€ requirements.txt
-â””â”€â”€ README.md
+├── checker.py
+├── src/
+│   ├── __init__.py
+│   ├── ingestion.py
+│   ├── validation.py
+│   ├── anomalies.py
+│   ├── gps.py
+│   └── reporting.py
+├── tests/
+│   └── test_checker.py
+├── ai_logs/
+├── DECISIONS.md
+├── flags.csv
+├── report.html
+├── requirements.txt
+└── README.md
 ```
 
 | Component | Responsibility |
